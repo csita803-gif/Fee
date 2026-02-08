@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Class Attendance & Fees System</title>
+
+<style>
+body{margin:0;font-family:Arial;background:#f2f2f2}
+
+/* LOGIN */
+#loginBox{
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.login-card{
+  background:#fff;
+  padding:20px;
+  width:330px;
+  border-radius:10px;
+  box-shadow:0 0 15px rgba(0,0,0,.3);
+  text-align:center;
+}
+
+/* EDITED BY VISHWAS MOTION */
+.edited-text{
+  font-size:20px;
+  font-weight:bold;
+  color:#2980b9;
+  margin-bottom:12px;
+  animation: moveGlow 3s ease-in-out infinite;
+}
+@keyframes moveGlow{
+  0%{transform:translateY(0);text-shadow:0 0 5px #3498db}
+  50%{transform:translateY(-10px);text-shadow:0 0 25px #1abc9c}
+  100%{transform:translateY(0);text-shadow:0 0 5px #3498db}
+}
+
+header{
+  background:#2c3e50;
+  color:#fff;
+  padding:12px;
+  text-align:center;
+}
+
+.container{padding:15px}
+.box{
+  background:#fff;
+  padding:15px;
+  margin-bottom:15px;
+  border-radius:8px;
+  box-shadow:0 0 10px rgba(0,0,0,.2)
+}
+
+input,select,button{
+  width:100%;
+  padding:10px;
+  margin:6px 0;
+  border-radius:5px;
+  border:1px solid #ccc
+}
+
+button{
+  border:none;
+  color:#fff;
+  cursor:pointer;
+  background:#27ae60
+}
+.btn-red{background:#c0392b}
+.btn-blue{background:#2980b9}
+.btn-purple{background:#8e44ad}
+.btn-orange{background:#f39c12}
+.btn-dark{background:#34495e}
+
+.student-list{display:flex;flex-wrap:wrap}
+.card{
+  width:280px;
+  background:#fff;
+  margin:8px;
+  padding:10px;
+  border-radius:8px;
+  box-shadow:0 0 8px rgba(0,0,0,.2)
+}
+.card img{
+  width:100%;
+  height:150px;
+  object-fit:cover;
+  border-radius:5px
+}
+.present{color:green;font-weight:bold}
+.absent{color:red;font-weight:bold}
+.small{font-size:12px}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginBox">
+  <div class="login-card">
+    <div class="edited-text">Edited by Vishwas</div>
+
+    <h2>🔐 Login</h2>
+    <input type="password" id="loginPass" placeholder="Enter Password">
+    <button onclick="login()">Login with Password</button>
+
+    <button class="btn-dark" onclick="fingerLogin()">🔒 Login with Fingerprint</button>
+
+    <p id="msg" style="color:red"></p>
+  </div>
+</div>
+
+<header>
+  <h2>Class Attendance & Fees System</h2>
+  <button class="btn-blue" onclick="changePassword()">Change Password</button>
+  <button class="btn-red" onclick="logout()">Logout</button>
+</header>
+
+<div class="container" id="app" style="display:none">
+
+<div class="box">
+  <h3>Add Class</h3>
+  <input id="className" placeholder="Class Name">
+  <button onclick="addClass()">Add Class</button>
+  <button class="btn-red" onclick="deleteClass()">Delete Selected Class</button>
+</div>
+
+<div class="box">
+  <h3>Select Class</h3>
+  <select id="classSelect" onchange="showStudents()"></select>
+</div>
+
+<div class="box">
+  <h3>Add Student</h3>
+  <input id="sname" placeholder="Student Name">
+  <input id="saddr" placeholder="Address">
+  <input type="date" id="joinDate">
+  <input type="number" id="tfees" placeholder="Total Fees">
+  <input type="number" id="pfees" placeholder="Paid Fees">
+  <input type="file" id="simg">
+  <button onclick="addStudent()">Add Student</button>
+</div>
+
+<div class="box">
+  <h3>Attendance Date</h3>
+  <input type="date" id="attDate">
+</div>
+
+<div class="student-list" id="list"></div>
+</div>
+
+<script>
+/* PASSWORD */
+if(!localStorage.getItem("appPass")){
+  localStorage.setItem("appPass","1234");
+}
+
+/* LOGIN */
+function login(){
+  if(loginPass.value===localStorage.getItem("appPass")){
+    unlock();
+  }else msg.innerText="Wrong Password";
+}
+
+function unlock(){
+  loginBox.style.display="none";
+  app.style.display="block";
+}
+
+function logout(){
+  location.reload();
+}
+
+/* CHANGE PASSWORD */
+function changePassword(){
+  let old=prompt("Old Password");
+  if(old!==localStorage.getItem("appPass")) return alert("Wrong password");
+  let n=prompt("New Password");
+  if(n){ localStorage.setItem("appPass",n); alert("Password Changed"); }
+}
+
+/* FINGERPRINT LOGIN (APK ONLY) */
+async function fingerLogin(){
+  if(!window.Capacitor){
+    alert("Fingerprint login sirf APK me kaam karta hai");
+    return;
+  }
+  try{
+    const result = await Capacitor.Plugins.Biometrics.verifyIdentity({
+      reason:"Verify fingerprint to unlock"
+    });
+    if(result.verified){
+      unlock();
+    }
+  }catch(e){
+    alert("Fingerprint failed, use password");
+  }
+}
+
+/* DATA */
+let classes=JSON.parse(localStorage.getItem("classes")||"[]");
+function save(){ localStorage.setItem("classes",JSON.stringify(classes)); }
+
+/* CLASS */
+function addClass(){
+  if(!className.value) return alert("Enter class name");
+  classes.push({id:Date.now()+"",name:className.value,students:[]});
+  className.value="";
+  save(); loadClasses();
+}
+
+function deleteClass(){
+  if(!classSelect.value) return alert("Select class first");
+  if(!confirm("Delete this class and all students?")) return;
+  classes = classes.filter(c=>c.id!==classSelect.value);
+  save(); loadClasses();
+}
+
+function loadClasses(){
+  classSelect.innerHTML="";
+  classes.forEach(c=>{
+    let o=document.createElement("option");
+    o.value=c.id; o.text=c.name;
+    classSelect.appendChild(o);
+  });
+  showStudents();
+}
+loadClasses();
+
+function currentClass(){
+  return classes.find(c=>c.id===classSelect.value);
+}
+
+/* STUDENT */
+function addStudent(){
+  let c=currentClass();
+  if(!c) return alert("Select class first");
+
+  let r=new FileReader();
+  r.onload=e=>{
+    c.students.push({
+      id:Date.now()+"",
+      name:sname.value,
+      addr:saddr.value,
+      join:joinDate.value,
+      total:+tfees.value,
+      paid:+pfees.value,
+      img:e.target.result,
+      payments:pfees.value?[{date:new Date().toISOString().split("T")[0],amt:+pfees.value}]:[],
+      att:{}
+    });
+    save(); showStudents();
+  }
+  simg.files[0]?r.readAsDataURL(simg.files[0]):r.onload({target:{result:null}});
+}
+
+/* DISPLAY */
+function showStudents(){
+  list.innerHTML="";
+  let c=currentClass();
+  if(!c) return;
+  let d=attDate.value||new Date().toISOString().split("T")[0];
+
+  c.students.forEach(s=>{
+    let pending=s.total-s.paid;
+    let div=document.createElement("div");
+    div.className="card";
+    div.innerHTML=`
+      ${s.img?`<img src="${s.img}">`:""}
+      <h3>${s.name}</h3>
+      <p class="small">📍 ${s.addr}</p>
+      <p class="small">📅 Join: ${s.join}</p>
+      <p>Total: ₹${s.total}</p>
+      <p>Paid: ₹${s.paid}</p>
+      <p>Pending: ₹${pending}</p>
+      <p class="${s.att[d]=="Present"?"present":"absent"}">
+        Status: ${s.att[d]||"Absent"}
+      </p>
+
+      <button onclick="mark('${s.id}','Present')">Present</button>
+      <button class="btn-red" onclick="mark('${s.id}','Absent')">Absent</button>
+      <button class="btn-blue" onclick="pay('${s.id}')">Add Payment</button>
+      <button class="btn-orange" onclick="updateFee('${s.id}')">Update Total Fees</button>
+      <button class="btn-purple" onclick="history('${s.id}')">Payment History</button>
+      <button class="btn-red" onclick="deleteStudent('${s.id}')">Delete Student</button>
+    `;
+    list.appendChild(div);
+  });
+}
+
+/* ACTIONS */
+function mark(id,st){
+  let s=currentClass().students.find(x=>x.id===id);
+  s.att[attDate.value]=st;
+  save(); showStudents();
+}
+
+function pay(id){
+  let s=currentClass().students.find(x=>x.id===id);
+  let a=+prompt("Enter payment amount");
+  if(a>0){
+    s.paid+=a;
+    s.payments.push({date:new Date().toISOString().split("T")[0],amt:a});
+    save(); showStudents();
+  }
+}
+
+function updateFee(id){
+  let s=currentClass().students.find(x=>x.id===id);
+  let n=+prompt("New total fees",s.total);
+  if(n<s.paid) return alert("Paid fees se kam nahi ho sakti");
+  s.total=n;
+  save(); showStudents();
+}
+
+function history(id){
+  let s=currentClass().students.find(x=>x.id===id);
+  let h="Payment History\n\n";
+  s.payments.forEach(p=>h+=`${p.date} : ₹${p.amt}\n`);
+  alert(h||"No payments");
+}
+
+function deleteStudent(id){
+  if(!confirm("Delete this student?")) return;
+  let c=currentClass();
+  c.students=c.students.filter(s=>s.id!==id);
+  save(); showStudents();
+}
+</script>
+</body>
+</html>
